@@ -1,0 +1,7 @@
+name = "goodsupport"
+type = "webpack"
+webpack_config = "webpack.config.js"
+account_id = "2a94650a01a5a443da8d4210ab9beac6"
+workers_dev = true
+route = ""
+zone_id = "dca0659660dc9735602a2068c666d5fe"

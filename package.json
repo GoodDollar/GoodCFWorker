@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "name": "@gooddollar/goodworker",
+  "version": "1.0.0",
+  "description": "Slack commands and mautic webhooks using cloudflare",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write '**/*.{js,css,json,md}'"
+  },
+  "author": "Hadar Rottenberg <hadar@gooddollar.org>",
+  "license": "MIT",
+  "devDependencies": {
+    "babel-register": "^6.26.0",
+    "prettier": "^1.18.2",
+    "webpack": "^4.41.2"
+  },
+  "dependencies": {
+    "dotenv-webpack": "^1.7.0",
+    "lodash": "^4.17.15"
+  }
+}
