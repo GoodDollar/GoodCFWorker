@@ -7,6 +7,13 @@ const BOT_NAME = 'GoodDolar Support'
 const PRIVATE_DB_PASS = process.env.ETORO_DB_PASS
 const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
 const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
+const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
+const SENTRY_KEY = process.env.SENTRY_KEY
+const REAMAZE_USER = process.env.REAMAZE_USER
+const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
+const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
+const slackValidChannels = ['etoro_feedback_qa', 'nordwhale']
+const prodBranches = ['alphav3', 'beta']
 
 addEventListener('fetch', event => {
   const url = event.request.url
@@ -16,6 +23,91 @@ addEventListener('fetch', event => {
     event.respondWith(mauticWebhookHandler(event.request))
   } else event.respondWith(slackWebhookHandler(event.request))
 })
+
+const sentryEvent = async (exOrMsg, extra) => {
+  let data
+  if (typeof exOrMsg === 'string') {
+    data = {
+      message: exOrMsg,
+      level: 'info',
+      extra,
+    }
+  } else {
+    data = {
+      exception: {
+        type: exOrMsg.message,
+        value: exOrMsg.message,
+        stacktrace: exOrMsg.stacktrace,
+      },
+      extra,
+    }
+  }
+  console.log('sentry req', data, { SENTRY_PROJECT_ID, SENTRY_KEY })
+  // const sentryUrl = 'https://webhook.site/feaf92f9-cf45-4358-a904-ec1acd40afbb'
+  const sentryUrl = `https://sentry.io/api/${SENTRY_PROJECT_ID}/store/`
+  // const sentryUrl = 'https://postman-echo.com/post'
+  const res = await fetch(sentryUrl, {
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Sentry-Auth': `Sentry sentry_version=7,sentry_key=${SENTRY_KEY},sentry_client=raven-bash/1.0`,
+      'User-Agent': 'curl/7.54.0',
+      Accept: '*/*',
+    },
+    body: JSON.stringify(data),
+    method: 'POST',
+  }).then(r => r.text())
+  console.log('sentry res:', res)
+}
+
+/**
+ * forward mautic form to reamaze
+ * @param {} events
+ */
+const forwardToReamaze = async event => {
+  try {
+    const userEmail =
+      _get(event, 'submission.lead.fields.core.email.value') ||
+      _get(event, 'submission.results.email', '')
+    const formKey = _get(event, 'submission.form.name', '')
+    const formData = JSON.stringify(
+      _get(event, 'submission.results', ''),
+      null,
+      2,
+    )
+    // const formData = JSON.stringify(_get(event, 'submission.results', ''))
+
+    const data = {
+      conversation: {
+        subject: `New Request - ${formKey}`,
+        category: 'support',
+        message: {
+          body: formData,
+          recipients: ['support@gooddollar.org'],
+        },
+        user: {
+          email: userEmail,
+        },
+      },
+    }
+    console.log('forwardToReamaze:', data)
+    const auth = btoa(`${REAMAZE_USER}:${REAMAZE_TOKEN}`)
+    const res = await fetch(
+      `https://gooddollar.reamaze.io/api/v1/conversations`,
+      {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(data),
+        method: 'POST',
+      },
+    )
+    console.log('reamaze response:', res.json())
+  } catch (e) {
+    console.log('forwardToReamze error:', e)
+  }
+}
 
 const goodserverPost = async (cmd, data) => {
   const response = await fetch(
@@ -149,6 +241,7 @@ async function slackWebhookHandler(request) {
     // const args = await command.parse(msg)
     // const result = args.result
     const result = await handleCommand(command, msg)
+    console.log('handleCommand:', { result })
     const asText = `\`\`\`${JSON.stringify(result, null, ' ')}\`\`\``
     return slackResponse(asText)
   } catch (e) {
@@ -183,7 +276,9 @@ const handleEmailOpenEvent = events => {
   })
   return amplitudePost(eventsData)
 }
-const handleFormSubmitEvent = events => {
+
+const handleFormSubmitEvent = async events => {
+  await Promise.all(events.map(async event => forwardToReamaze(event)))
   const eventsData = events.map(event => {
     const user_id = _get(event, 'submission.lead.fields.core.email.value')
     const mauticId = _get(event, 'submission.lead.id')
@@ -203,7 +298,7 @@ const handleFormSubmitEvent = events => {
         mauticId,
       },
     }
-    console.log({ eventData })
+    console.log('handleFormSubmit event:', { eventData })
     return eventData
   })
   return amplitudePost(eventsData)
@@ -224,6 +319,10 @@ async function mauticWebhookHandler(request) {
     const eventKey = Object.keys(json)
       .filter(_ => _.indexOf('mautic.') === 0)
       .pop()
+    await sentryEvent('mauticWebhookHandler incoming', {
+      eventKey,
+      json,
+    })
     const events = Array.isArray(json[eventKey])
       ? json[eventKey]
       : [json[eventKey]]
@@ -235,7 +334,7 @@ async function mauticWebhookHandler(request) {
         break
       case 'mautic.form_on_submit':
         res = await handleFormSubmitEvent(events)
-        console.log({ res })
+        console.log('amplitude response:', { res })
         break
     }
     return simpleResponse(200, `ok`)
