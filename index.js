@@ -123,6 +123,21 @@ const goodserverPost = async (cmd, data) => {
   return response.json()
 }
 
+const travisPost = async (repocmd, data) => {
+  const tosend = {
+    request: data,
+  }
+  const response = await fetch('https://api.travis-ci.com/repo/' + repocmd, {
+    method: 'POST', // *GET, POST, PUT, DELETE, etc.
+    headers: {
+      'Content-Type': 'application/json',
+      'Travis-API-Version': 3,
+      Authorization: `token ${TRAVIS_TOKEN}`,
+    },
+    body: JSON.stringify(tosend), // body data type must match "Content-Type" header
+  })
+  return response.json()
+}
 const amplitudePost = async events => {
   const data = {
     api_key: process.env.AMPLITUDE_KEY,
@@ -139,29 +154,84 @@ const amplitudePost = async events => {
   return response.json()
 }
 const handleCommand = async (cmd, msg) => {
-  const data = msg
   let payload
-  console.log({ cmd, data })
+  console.log({ cmd, msg })
   switch (cmd) {
+    case '/release':
+      let [
+        DEPLOY_VERSION = 'prerelease',
+        DEPLOY_FROM = 'master',
+        DEPLOY_TO = 'staging',
+      ] = msg.split(' ')
+      let data = {
+        message: 'Triggering release from slack',
+        config: {
+          merge_mode: 'replace',
+          language: 'node_js',
+          node_js: ['10.15'],
+          addons: {},
+          cache: false,
+          git: { depth: 1 },
+          env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
+          matrix: {},
+          install: ['npm i -g auto-changelog'],
+          script: [
+            'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$TRAVIS_BRANCH --follow-tags',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$DEPLOY_TO',
+          ],
+        },
+        branch: DEPLOY_FROM,
+      }
+      console.log('slack release:', { data })
+      let dapp, server
+      switch (DEPLOY_VERSION) {
+        default:
+        case 'qa':
+          data.config.env.global.DEPLOY_VERSION =
+            DEPLOY_VERSION === 'qa' ? 'prerelease' : DEPLOY_VERSION
+          dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
+          server = travisPost('GoodDollar%2FGoodServer/requests', data)
+          return Promise.all([dapp, server])
+          break
+        case 'prod':
+          data.config.env.global.DEPLOY_VERSION = 'minor'
+          data.config.script = [
+            'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$TRAVIS_BRANCH --follow-tags',
+          ]
+          prodBranches.forEach(b => {
+            data.config.script.push(
+              `git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:${b}`,
+            )
+          })
+          dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
+          server = travisPost('GoodDollar%2FGoodServer/requests', data)
+          return Promise.all([dapp, server])
+          break
+      }
+
+      break
     case '/getuser':
+      console.log('getuser', { msg })
       payload = {
         password: PRIVATE_DB_PASS,
-        email: data,
+        email: msg,
       }
-      if (data.match(/\+?[0-9]+$/)) {
-        payload.mobile = data.indexOf('+') == 0 ? data : `+${data}`
+      if (msg.match(/\+?[0-9]+$/)) {
+        payload.mobile = msg.indexOf('+') == 0 ? msg : `+${msg}`
         delete payload.email
       }
-      console.log({ payload })
+      console.log('getuser', { payload })
       return await goodserverPost('/admin/user/get', payload)
       break
     case '/deleteuser':
-      if (!data.match(/0x[0-9A-Fa-f]+$/)) {
+      if (!msg.match(/0x[0-9A-Fa-f]+$/)) {
         throw new Error('bad user identifier format')
       }
       payload = {
         password: PRIVATE_DB_PASS,
-        identifier: data,
+        identifier: msg,
       }
 
       console.log({ payload })
@@ -233,11 +303,11 @@ async function slackWebhookHandler(request) {
     if (formData.get('token') !== SLACK_TOKEN) {
       return simpleResponse(403, 'invalid Slack verification token')
     }
-    if (formData.get('channel_name') !== 'etoro_feedback_qa') {
+    if (slackValidChannels.includes(formData.get('channel_name')) === false) {
       return simpleResponse(403, 'unauthorized channel')
     }
     const command = formData.get('command')
-    const msg = formData.get('text')
+    const msg = formData.get('text') || ''
     // const args = await command.parse(msg)
     // const result = args.result
     const result = await handleCommand(command, msg)
