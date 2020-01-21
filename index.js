@@ -171,14 +171,21 @@ const handleCommand = async (cmd, msg) => {
           node_js: ['10.15'],
           addons: {},
           cache: false,
-          git: { depth: 1 },
+          git: { depth: false },
           env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
           matrix: {},
           install: ['npm i -g auto-changelog'],
           script: [
+            'git checkout $DEPLOY_FROM',
             'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$TRAVIS_BRANCH --follow-tags',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$DEPLOY_TO',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
+            'git fetch origin $DEPLOY_TO:$DEPLOY_TO',
+            'git checkout $DEPLOY_TO',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:$DEPLOY_TO',
+            'git fetch origin master:master',
+            'git checkout master',
+            'git merge $DEPLOY_FROM',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           ],
         },
         branch: DEPLOY_FROM,
@@ -197,14 +204,23 @@ const handleCommand = async (cmd, msg) => {
         case 'prod':
           data.config.env.global.DEPLOY_VERSION = 'minor'
           data.config.script = [
+            'git checkout $DEPLOY_FROM',
             'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:$TRAVIS_BRANCH --follow-tags',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
           ]
           prodBranches.forEach(b => {
             data.config.script.push(
-              `git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG HEAD:${b}`,
+              `git fetch origin ${b}:${b}`,
+              `git checkout ${b}`,
+              `git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:${b}`,
             )
           })
+          data.config.script.push(
+            'git fetch origin master',
+            'git checkout master origin/master',
+            'git merge $DEPLOY_FROM',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
+          )
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
           server = travisPost('GoodDollar%2FGoodServer/requests', data)
           return Promise.all([dapp, server])
