@@ -160,8 +160,8 @@ const handleCommand = async (cmd, msg) => {
     case '/release':
       let [
         DEPLOY_VERSION = 'prerelease',
-        DEPLOY_FROM = 'master',
-        DEPLOY_TO = 'staging',
+        DEPLOY_FROM
+        DEPLOY_TO
       ] = msg.split(' ')
       let data = {
         message: 'Triggering release from slack',
@@ -174,10 +174,20 @@ const handleCommand = async (cmd, msg) => {
           git: { depth: false },
           env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
           matrix: {},
-          install: ['npm i -g auto-changelog'],
-          script: [
+          install: ['npm i -g auto-changelog'],          
+        },
+        branch: DEPLOY_FROM,
+      }
+      console.log('slack release:', { data })
+      let dapp, server
+      switch (DEPLOY_VERSION) {
+        default:
+        case 'qa':
+          data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'master'
+          data.config.env.global.DEPLOY_TO = DEPLOY_TO || 'staging'
+          data.config.script = [
             'git checkout $DEPLOY_FROM',
-            'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
+            'npm version $DEPLOY_VERSION -m "chore: release qa version %s [skip ci]"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
             'git fetch origin $DEPLOY_TO:$DEPLOY_TO',
             'git checkout $DEPLOY_TO',
@@ -187,14 +197,6 @@ const handleCommand = async (cmd, msg) => {
             'git merge $DEPLOY_FROM',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           ],
-        },
-        branch: DEPLOY_FROM,
-      }
-      console.log('slack release:', { data })
-      let dapp, server
-      switch (DEPLOY_VERSION) {
-        default:
-        case 'qa':
           data.config.env.global.DEPLOY_VERSION =
             DEPLOY_VERSION === 'qa' ? 'prerelease' : DEPLOY_VERSION
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
@@ -202,6 +204,7 @@ const handleCommand = async (cmd, msg) => {
           return Promise.all([dapp, server])
           break
         case 'prod':
+          data.config.env.global.DEPLOY_FROM = 'staging'
           data.config.env.global.DEPLOY_VERSION = 'minor'
           data.config.script = [
             'git checkout $DEPLOY_FROM',
@@ -217,7 +220,7 @@ const handleCommand = async (cmd, msg) => {
           })
           data.config.script.push(
             'git fetch origin master',
-            'git checkout master origin/master',
+            'git checkout master',
             'git merge $DEPLOY_FROM',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           )
