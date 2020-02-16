@@ -158,11 +158,9 @@ const handleCommand = async (cmd, msg) => {
   console.log({ cmd, msg })
   switch (cmd) {
     case '/release':
-      let [
-        DEPLOY_VERSION = 'prerelease',
-        DEPLOY_FROM
-        DEPLOY_TO
-      ] = msg.split(' ')
+      let [DEPLOY_VERSION = 'prerelease', DEPLOY_FROM, DEPLOY_TO] = msg.split(
+        ' ',
+      )
       let data = {
         message: 'Triggering release from slack',
         config: {
@@ -174,7 +172,7 @@ const handleCommand = async (cmd, msg) => {
           git: { depth: false },
           env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
           matrix: {},
-          install: ['npm i -g auto-changelog'],          
+          install: ['npm i -g auto-changelog'],
         },
         branch: DEPLOY_FROM,
       }
@@ -185,7 +183,7 @@ const handleCommand = async (cmd, msg) => {
         case 'qa':
           data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'master'
           data.config.env.global.DEPLOY_TO = DEPLOY_TO || 'staging'
-          data.config.script = [
+          ;(data.config.script = [
             'git checkout $DEPLOY_FROM',
             'npm version $DEPLOY_VERSION -m "chore: release qa version %s [skip ci]"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
@@ -196,9 +194,9 @@ const handleCommand = async (cmd, msg) => {
             'git checkout master',
             'git merge $DEPLOY_FROM',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
-          ],
-          data.config.env.global.DEPLOY_VERSION =
-            DEPLOY_VERSION === 'qa' ? 'prerelease' : DEPLOY_VERSION
+          ]),
+            (data.config.env.global.DEPLOY_VERSION =
+              DEPLOY_VERSION === 'qa' ? 'prerelease' : DEPLOY_VERSION)
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
           server = travisPost('GoodDollar%2FGoodServer/requests', data)
           return Promise.all([dapp, server])
