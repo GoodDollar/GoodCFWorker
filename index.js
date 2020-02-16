@@ -192,7 +192,7 @@ const handleCommand = async (cmd, msg) => {
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:$DEPLOY_TO',
             'git fetch origin master:master',
             'git checkout master',
-            'git merge $DEPLOY_FROM',
+            'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           ]),
             (data.config.env.global.DEPLOY_VERSION =
@@ -219,7 +219,7 @@ const handleCommand = async (cmd, msg) => {
           data.config.script.push(
             'git fetch origin master',
             'git checkout master',
-            'git merge $DEPLOY_FROM',
+            'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           )
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
