@@ -208,7 +208,7 @@ const handleCommand = async (cmd, msg) => {
           return Promise.all([dapp, server])
           break
         case 'prod':
-          data.config.env.global.DEPLOY_FROM = 'staging'
+          data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'staging'
           data.config.env.global.DEPLOY_VERSION = DEPLOY_VERSION || 'minor'
           data.config.script = [
             'git checkout $DEPLOY_FROM',
