@@ -5,6 +5,7 @@ import _get from 'lodash/get'
 const SLACK_TOKEN = process.env.SLACK_TOKEN
 const BOT_NAME = 'GoodDolar Support'
 const PRIVATE_DB_PASS = process.env.ETORO_DB_PASS
+const PROD_DB_PASS = process.env.PROD_DB_PASS
 const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
 const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
 const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
@@ -12,8 +13,8 @@ const SENTRY_KEY = process.env.SENTRY_KEY
 const REAMAZE_USER = process.env.REAMAZE_USER
 const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
 const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
-const slackValidChannels = ['etoro_feedback_qa', 'nordwhale']
-const prodBranches = ['alphav3', 'beta']
+const slackValidChannels = ['etoro_feedback_qa', 'devs']
+const prodBranches = ['production']
 
 addEventListener('fetch', event => {
   const url = event.request.url
@@ -109,17 +110,24 @@ const forwardToReamaze = async event => {
   }
 }
 
-const goodserverPost = async (cmd, data) => {
-  const response = await fetch(
-    'https://etoro-server-production.herokuapp.com' + cmd,
-    {
-      method: 'POST', // *GET, POST, PUT, DELETE, etc.
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data), // body data type must match "Content-Type" header
+const goodserverPost = async (cmd, data, env) => {
+  let server
+  switch (env) {
+    default:
+    case 'etoro':
+      server = 'https://etoro-server-production.herokuapp.com'
+      break
+    case 'prod':
+      server = 'https://goodserver-prod.herokuapp.com'
+      break
+  }
+  const response = await fetch(server + cmd, {
+    method: 'POST', // *GET, POST, PUT, DELETE, etc.
+    headers: {
+      'Content-Type': 'application/json',
     },
-  )
+    body: JSON.stringify(data), // body data type must match "Content-Type" header
+  })
   return response.json()
 }
 
@@ -231,8 +239,19 @@ const handleCommand = async (cmd, msg) => {
       break
     case '/getuser':
       console.log('getuser', { msg })
+      let [emailOrMobile, env = 'etoro'] = msg.split(/\s+/)
+      let password
+      switch (env) {
+        default:
+        case 'etoro':
+          password = PRIVATE_DB_PASS
+          break
+        case 'prod':
+          password = PROD_DB_PASS
+          break
+      }
       payload = {
-        password: PRIVATE_DB_PASS,
+        password,
         email: msg,
       }
       if (msg.match(/\+?[0-9]+$/)) {
@@ -240,19 +259,31 @@ const handleCommand = async (cmd, msg) => {
         delete payload.email
       }
       console.log('getuser', { payload })
-      return await goodserverPost('/admin/user/get', payload)
+      return await goodserverPost('/admin/user/get', payload, env)
       break
     case '/deleteuser':
-      if (!msg.match(/0x[0-9A-Fa-f]+$/)) {
+      let [identifier, delenv = 'etoro'] = msg.split(/\s+/)
+      if (!identifier.match(/0x[0-9A-Fa-f]+$/)) {
         throw new Error('bad user identifier format')
       }
+      let delpass
+      switch (delenv) {
+        default:
+        case 'etoro':
+          delpass = PRIVATE_DB_PASS
+          break
+        case 'prod':
+          delpass = PROD_DB_PASS
+          break
+      }
+
       payload = {
-        password: PRIVATE_DB_PASS,
+        password: delpass,
         identifier: msg,
       }
 
       console.log({ payload })
-      return await goodserverPost('/admin/user/delete', payload)
+      return await goodserverPost('/admin/user/delete', payload, delenv)
       break
     default:
       throw new Error(`unknown command ${cmd}`)
