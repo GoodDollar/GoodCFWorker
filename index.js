@@ -212,7 +212,7 @@ const handleCommand = async (cmd, msg) => {
           data.config.env.global.DEPLOY_VERSION = DEPLOY_VERSION || 'minor'
           data.config.script = [
             'git checkout $DEPLOY_FROM',
-            'npm version $DEPLOY_VERSION -m "chore: release version %s [skip ci]"',
+            'npm version $DEPLOY_VERSION -m "chore: release version %s"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
           ]
           const deployBranches =
