@@ -241,8 +241,8 @@ const handleCommand = async (cmd, msg) => {
 
       break
     case '/getuser':
-      console.log('getuser', { msg })
       let [emailOrMobile, env = 'etoro'] = msg.split(/\s+/)
+      console.log('getuser', { msg, emailOrMobile, env })
       let password
       switch (env) {
         default:
@@ -255,10 +255,11 @@ const handleCommand = async (cmd, msg) => {
       }
       payload = {
         password,
-        email: msg,
+        email: emailOrMobile,
       }
-      if (msg.match(/\+?[0-9]+$/)) {
-        payload.mobile = msg.indexOf('+') == 0 ? msg : `+${msg}`
+      if (emailOrMobile.match(/\+?[0-9]+$/)) {
+        payload.mobile =
+          emailOrMobile.indexOf('+') == 0 ? emailOrMobile : `+${emailOrMobile}`
         delete payload.email
       }
       console.log('getuser', { payload })
@@ -282,7 +283,7 @@ const handleCommand = async (cmd, msg) => {
 
       payload = {
         password: delpass,
-        identifier: msg,
+        identifier,
       }
 
       console.log({ payload })
