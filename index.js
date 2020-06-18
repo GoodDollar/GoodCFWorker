@@ -16,14 +16,13 @@ const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
 const slackValidChannels = ['etoro_feedback_qa', 'devs']
 const prodBranches = ['production']
 
-addEventListener('fetch', event => {
+addEventListener('fetch', (event) => {
   const url = event.request.url
   console.log({ url })
   const toMatch = `key=${AMPLITUDE_SECRET}`
   if (url.indexOf(toMatch) > 0) {
     event.respondWith(mauticWebhookHandler(event.request))
-  }
-  else event.respondWith(slackWebhookHandler(event.request))
+  } else event.respondWith(slackWebhookHandler(event.request))
 })
 
 const sentryEvent = async (exOrMsg, extra) => {
@@ -34,8 +33,7 @@ const sentryEvent = async (exOrMsg, extra) => {
       level: 'info',
       extra,
     }
-  }
-  else {
+  } else {
     data = {
       exception: {
         type: exOrMsg.message,
@@ -58,7 +56,7 @@ const sentryEvent = async (exOrMsg, extra) => {
     },
     body: JSON.stringify(data),
     method: 'POST',
-  }).then(r => r.text())
+  }).then((r) => r.text())
   console.log('sentry res:', res)
 }
 
@@ -66,12 +64,17 @@ const sentryEvent = async (exOrMsg, extra) => {
  * forward mautic form to reamaze
  * @param {} events
  */
-const forwardToReamaze = async event => {
+const forwardToReamaze = async (event) => {
   try {
     const userEmail =
-      _get(event, 'submission.lead.fields.core.email.value') || _get(event, 'submission.results.email', '')
+      _get(event, 'submission.lead.fields.core.email.value') ||
+      _get(event, 'submission.results.email', '')
     const formKey = _get(event, 'submission.form.name', '')
-    const formData = JSON.stringify(_get(event, 'submission.results', ''), null, 2)
+    const formData = JSON.stringify(
+      _get(event, 'submission.results', ''),
+      null,
+      2,
+    )
     // const formData = JSON.stringify(_get(event, 'submission.results', ''))
 
     const data = {
@@ -89,15 +92,18 @@ const forwardToReamaze = async event => {
     }
     console.log('forwardToReamaze:', data)
     const auth = btoa(`${REAMAZE_USER}:${REAMAZE_TOKEN}`)
-    const res = await fetch(`https://gooddollar.reamaze.io/api/v1/conversations`, {
-      headers: {
-        Authorization: `Basic ${auth}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
+    const res = await fetch(
+      `https://gooddollar.reamaze.io/api/v1/conversations`,
+      {
+        headers: {
+          Authorization: `Basic ${auth}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(data),
+        method: 'POST',
       },
-      body: JSON.stringify(data),
-      method: 'POST',
-    })
+    )
     console.log('reamaze response:', res.json())
   } catch (e) {
     console.log('forwardToReamze error:', e)
@@ -140,7 +146,7 @@ const travisPost = async (repocmd, data) => {
   })
   return response.json()
 }
-const amplitudePost = async events => {
+const amplitudePost = async (events) => {
   const data = {
     api_key: process.env.AMPLITUDE_KEY,
     events,
@@ -162,10 +168,16 @@ const handleCommand = async (cmd, msg) => {
     case '/release':
       let [ENV, DEPLOY_FROM, DEPLOY_TO, DEPLOY_VERSION] = msg.split(' ')
       let data = {
-        message: 'Triggering release from slack',
+        message: `Triggering release from slack ${JSON.stringify({
+          ENV,
+          DEPLOY_FROM,
+          DEPLOY_TO,
+          DEPLOY_VERSION,
+        })}`,
         merge_mode: 'replace',
         config: {
           language: 'node_js',
+          merge_mode: 'replace',
           node_js: ['10.15'],
           addons: {},
           cache: false,
@@ -195,7 +207,8 @@ const handleCommand = async (cmd, msg) => {
             'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
           ]),
-            (data.config.env.global.DEPLOY_VERSION = DEPLOY_VERSION || 'prerelease')
+            (data.config.env.global.DEPLOY_VERSION =
+              DEPLOY_VERSION || 'prerelease')
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
           server = travisPost('GoodDollar%2FGoodServer/requests', data)
           return Promise.all([dapp, server])
@@ -209,8 +222,10 @@ const handleCommand = async (cmd, msg) => {
             'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
           ]
           const deployBranches =
-            prodBranches.includes(DEPLOY_TO) === false ? prodBranches : prodBranches.concat([DEPLOY_TO])
-          deployBranches.forEach(b => {
+            prodBranches.includes(DEPLOY_TO) === false
+              ? prodBranches
+              : prodBranches.concat([DEPLOY_TO])
+          deployBranches.forEach((b) => {
             data.config.script.push(
               `git fetch origin ${b}:${b}`,
               `git checkout ${b}`,
@@ -249,7 +264,8 @@ const handleCommand = async (cmd, msg) => {
         email: emailOrMobile,
       }
       if (emailOrMobile.match(/\+?[0-9]+$/)) {
-        payload.mobile = emailOrMobile.indexOf('+') == 0 ? emailOrMobile : `+${emailOrMobile}`
+        payload.mobile =
+          emailOrMobile.indexOf('+') == 0 ? emailOrMobile : `+${emailOrMobile}`
         delete payload.email
       }
       console.log('getuser', { payload })
@@ -334,7 +350,10 @@ async function slackWebhookHandler(request) {
   // - The webhook payload is provided as POST form data
 
   if (request.method !== 'POST') {
-    return simpleResponse(200, `Hi, I'm ${BOT_NAME}, a Slack bot for GoodDollar`)
+    return simpleResponse(
+      200,
+      `Hi, I'm ${BOT_NAME}, a Slack bot for GoodDollar`,
+    )
   }
 
   try {
@@ -358,11 +377,15 @@ async function slackWebhookHandler(request) {
   }
 }
 
-const handleEmailOpenEvent = events => {
-  const eventsData = events.map(event => {
-    const user_id = _get(event, 'stat.lead.fields.core.email.value') || _get(event, 'stat.email')
+const handleEmailOpenEvent = (events) => {
+  const eventsData = events.map((event) => {
+    const user_id =
+      _get(event, 'stat.lead.fields.core.email.value') ||
+      _get(event, 'stat.email')
     const mauticId = _get(event, 'stat.lead.id')
-    const emailKey = _get(event, 'stat.email.name', '').toUpperCase().replace(/\s+/g, '_')
+    const emailKey = _get(event, 'stat.email.name', '')
+      .toUpperCase()
+      .replace(/\s+/g, '_')
     const emailId = _get(event, 'stat.email.id', 0)
     const event_type = 'MAUTIC_EMAIL_OPEN'
     const eventData = {
@@ -382,12 +405,14 @@ const handleEmailOpenEvent = events => {
   return amplitudePost(eventsData)
 }
 
-const handleFormSubmitEvent = async events => {
-  await Promise.all(events.map(async event => forwardToReamaze(event)))
-  const eventsData = events.map(event => {
+const handleFormSubmitEvent = async (events) => {
+  await Promise.all(events.map(async (event) => forwardToReamaze(event)))
+  const eventsData = events.map((event) => {
     const user_id = _get(event, 'submission.lead.fields.core.email.value')
     const mauticId = _get(event, 'submission.lead.id')
-    const formKey = _get(event, 'submission.form.name', '').toUpperCase().replace(/\s+/g, '_')
+    const formKey = _get(event, 'submission.form.name', '')
+      .toUpperCase()
+      .replace(/\s+/g, '_')
     const formId = _get(event, 'submission.form.id', 0)
     const event_type = 'MAUTIC_FORM_SUBMIT'
     const eventData = {
@@ -419,12 +444,16 @@ async function mauticWebhookHandler(request) {
   let res
   try {
     const json = await request.json()
-    const eventKey = Object.keys(json).filter(_ => _.indexOf('mautic.') === 0).pop()
+    const eventKey = Object.keys(json)
+      .filter((_) => _.indexOf('mautic.') === 0)
+      .pop()
     await sentryEvent('mauticWebhookHandler incoming', {
       eventKey,
       json,
     })
-    const events = Array.isArray(json[eventKey]) ? json[eventKey] : [json[eventKey]]
+    const events = Array.isArray(json[eventKey])
+      ? json[eventKey]
+      : [json[eventKey]]
     console.log({ eventKey })
     switch (eventKey) {
       case 'mautic.email_on_open':
