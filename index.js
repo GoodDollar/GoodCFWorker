@@ -13,15 +13,18 @@ const SENTRY_KEY = process.env.SENTRY_KEY
 const REAMAZE_USER = process.env.REAMAZE_USER
 const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
 const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
+const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
 const slackValidChannels = ['etoro_feedback_qa', 'devs']
 const prodBranches = ['production']
 
-addEventListener('fetch', (event) => {
+addEventListener('fetch', event => {
   const url = event.request.url
   console.log({ url })
   const toMatch = `key=${AMPLITUDE_SECRET}`
   if (url.indexOf(toMatch) > 0) {
     event.respondWith(mauticWebhookHandler(event.request))
+  } else if (url.indexOf('key=goodalerts')) {
+    event.respondWith(alertsWebhookHandler(event.request))
   } else event.respondWith(slackWebhookHandler(event.request))
 })
 
@@ -56,7 +59,7 @@ const sentryEvent = async (exOrMsg, extra) => {
     },
     body: JSON.stringify(data),
     method: 'POST',
-  }).then((r) => r.text())
+  }).then(r => r.text())
   console.log('sentry res:', res)
 }
 
@@ -64,7 +67,7 @@ const sentryEvent = async (exOrMsg, extra) => {
  * forward mautic form to reamaze
  * @param {} events
  */
-const forwardToReamaze = async (event) => {
+const forwardToReamaze = async event => {
   try {
     const userEmail =
       _get(event, 'submission.lead.fields.core.email.value') ||
@@ -146,7 +149,7 @@ const travisPost = async (repocmd, data) => {
   })
   return response.json()
 }
-const amplitudePost = async (events) => {
+const amplitudePost = async events => {
   const data = {
     api_key: process.env.AMPLITUDE_KEY,
     events,
@@ -225,7 +228,7 @@ const handleCommand = async (cmd, msg) => {
             prodBranches.includes(DEPLOY_TO) === false
               ? prodBranches
               : prodBranches.concat([DEPLOY_TO])
-          deployBranches.forEach((b) => {
+          deployBranches.forEach(b => {
             data.config.script.push(
               `git fetch origin ${b}:${b}`,
               `git checkout ${b}`,
@@ -377,8 +380,8 @@ async function slackWebhookHandler(request) {
   }
 }
 
-const handleEmailOpenEvent = (events) => {
-  const eventsData = events.map((event) => {
+const handleEmailOpenEvent = events => {
+  const eventsData = events.map(event => {
     const user_id =
       _get(event, 'stat.lead.fields.core.email.value') ||
       _get(event, 'stat.email')
@@ -405,9 +408,9 @@ const handleEmailOpenEvent = (events) => {
   return amplitudePost(eventsData)
 }
 
-const handleFormSubmitEvent = async (events) => {
-  await Promise.all(events.map(async (event) => forwardToReamaze(event)))
-  const eventsData = events.map((event) => {
+const handleFormSubmitEvent = async events => {
+  await Promise.all(events.map(async event => forwardToReamaze(event)))
+  const eventsData = events.map(event => {
     const user_id = _get(event, 'submission.lead.fields.core.email.value')
     const mauticId = _get(event, 'submission.lead.id')
     const formKey = _get(event, 'submission.form.name', '')
@@ -445,7 +448,7 @@ async function mauticWebhookHandler(request) {
   try {
     const json = await request.json()
     const eventKey = Object.keys(json)
-      .filter((_) => _.indexOf('mautic.') === 0)
+      .filter(_ => _.indexOf('mautic.') === 0)
       .pop()
     await sentryEvent('mauticWebhookHandler incoming', {
       eventKey,
@@ -469,4 +472,48 @@ async function mauticWebhookHandler(request) {
   } catch (e) {
     return simpleResponse(400, `Sorry, couldn't perform your request: ${e}`)
   }
+}
+
+/**
+ * alertsWebhookHandler handles an incoming alibaba cloud monitoring alerts
+ * and post message to slack
+ * @param {Request} request
+ */
+async function alertsWebhookHandler(request) {
+  if (request.method !== 'POST') {
+    return simpleResponse(400, `Hi, I'm ${BOT_NAME}, expecting post request`)
+  }
+
+  let res
+  try {
+    const json = await request.json()
+    const eventKey = Object.keys(json)
+      .filter(_ => _.indexOf('mautic.') === 0)
+      .pop()
+    await sentryEvent('alertsWebhookHandler incoming', {
+      json,
+    })
+    const response = await postToSlack(json).catch(e => e)
+    await sentryEvent('alertsWebhookHandler slack response', {
+      response,
+    })
+    return simpleResponse(200, `ok`)
+  } catch (e) {
+    return simpleResponse(400, `Sorry, couldn't perform your request: ${e}`)
+  }
+}
+
+const postToSlack = async eventJson => {
+  const data = {
+    text: JSON.stringify(eventJson),
+  }
+  const response = await fetch(SLACK_MONITORING_WEBHOOK, {
+    method: 'POST', // *GET, POST, PUT, DELETE, etc.
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: '*/*',
+    },
+    body: JSON.stringify(data), // body data type must match "Content-Type" header
+  })
+  return response.json()
 }
