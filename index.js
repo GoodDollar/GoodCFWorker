@@ -486,27 +486,41 @@ async function alertsWebhookHandler(request) {
 
   let res
   try {
-    const json = await request.json()
-    const eventKey = Object.keys(json)
-      .filter(_ => _.indexOf('mautic.') === 0)
-      .pop()
+    let text = ''
+    await request
+      .clone()
+      .formData()
+      .then(formData => {
+        const alibabaAlertCode = Number(formData.get('curValue'))
+        //filter 6xx error codes
+        if (alibabaAlertCode >= 600) return
+        for (let e of formData.entries()) text += e.join(':') + '\n'
+      })
+      .catch(async e => (text = await request.clone().text()))
+    console.log({ text })
     await sentryEvent('alertsWebhookHandler incoming', {
-      json,
+      text: request.text(),
     })
-    const response = await postToSlack(json).catch(e => e)
-    await sentryEvent('alertsWebhookHandler slack response', {
-      response,
-    })
+    if (text !== '') {
+      const response = await postToSlack(text).catch(e => e)
+      await sentryEvent('alertsWebhookHandler slack response', {
+        response,
+      })
+    }
     return simpleResponse(200, `ok`)
   } catch (e) {
+    await sentryEvent('alertsWebhookHandler failed', {
+      e,
+    })
     return simpleResponse(400, `Sorry, couldn't perform your request: ${e}`)
   }
 }
 
-const postToSlack = async eventJson => {
+const postToSlack = async text => {
   const data = {
-    text: JSON.stringify(eventJson),
+    text,
   }
+  console.log({ data })
   const response = await fetch(SLACK_MONITORING_WEBHOOK, {
     method: 'POST', // *GET, POST, PUT, DELETE, etc.
     headers: {
@@ -515,5 +529,5 @@ const postToSlack = async eventJson => {
     },
     body: JSON.stringify(data), // body data type must match "Content-Type" header
   })
-  return response.json()
+  return response.text()
 }
