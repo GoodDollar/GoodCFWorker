@@ -23,7 +23,7 @@ addEventListener('fetch', event => {
   const toMatch = `key=${AMPLITUDE_SECRET}`
   if (url.indexOf(toMatch) > 0) {
     event.respondWith(mauticWebhookHandler(event.request))
-  } else if (url.indexOf('key=goodalerts')) {
+  } else if (url.indexOf('key=goodalerts') > 0) {
     event.respondWith(alertsWebhookHandler(event.request))
   } else event.respondWith(slackWebhookHandler(event.request))
 })
