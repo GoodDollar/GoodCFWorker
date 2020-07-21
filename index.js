@@ -188,7 +188,7 @@ const handleCommand = async (cmd, msg) => {
           method: op === 'allow' ? 'POST' : 'GET',
           body,
         },
-      ).json()
+      ).then(response => response.json())
       console.log('/queue command result:', { res, msg, serverHost })
       return res
       break
