@@ -6,6 +6,8 @@ const SLACK_TOKEN = process.env.SLACK_TOKEN
 const BOT_NAME = 'GoodDolar Support'
 const PRIVATE_DB_PASS = process.env.ETORO_DB_PASS
 const PROD_DB_PASS = process.env.PROD_DB_PASS
+const QA_DB_PASS = process.env.QA_DB_PASS
+const DEV_DB_PASS = process.env.DEV_DB_PASS
 const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
 const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
 const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
@@ -168,6 +170,28 @@ const handleCommand = async (cmd, msg) => {
   let payload
   console.log({ cmd, msg })
   switch (cmd) {
+    case '/queue':
+      let [queueEnv, op, allow] = msg.split(' ')
+      const serverHost =
+        queueEnv === 'qa'
+          ? 'goodserver-qa'
+          : queueEnv === 'prod'
+          ? 'goodserver-prod'
+          : 'good-server'
+      const body =
+        op === 'approve'
+          ? { password: global[`${queueEnv.toUpperCase()}_DB_PASS`], allow }
+          : undefined
+      const res = await fetch(
+        `https://${serverHost}.herokuapp.com/admin/queue`,
+        {
+          method: op === 'allow' ? 'POST' : 'GET',
+          body,
+        },
+      ).json()
+      console.log('/queue command result:', { res, msg, serverHost })
+      return res
+      break
     case '/release':
       let [ENV, DEPLOY_FROM, DEPLOY_TO, DEPLOY_VERSION] = msg.split(' ')
       let data = {
@@ -311,7 +335,7 @@ let jsonHeaders = new Headers([['Content-Type', 'application/json']])
  * @param {Number} statusCode
  * @param {String} message
  */
-function simpleResponse(statusCode, message) {
+function simpleResponse (statusCode, message) {
   let resp = {
     response_type: 'ephemeral',
     text: message,
@@ -329,7 +353,7 @@ function simpleResponse(statusCode, message) {
  *
  * @param {string} text - the message text to return
  */
-function slackResponse(text) {
+function slackResponse (text) {
   let content = {
     text: text,
     attachments: [],
@@ -346,7 +370,7 @@ function slackResponse(text) {
  * webhook and generates a response.
  * @param {Request} request
  */
-async function slackWebhookHandler(request) {
+async function slackWebhookHandler (request) {
   // As per: https://api.slack.com/slash-commands
   // - Slash commands are outgoing webhooks (POST requests)
   // - Slack authenticates via a verification token.
@@ -439,7 +463,7 @@ const handleFormSubmitEvent = async events => {
  * webhook and generates amplitude event.
  * @param {Request} request
  */
-async function mauticWebhookHandler(request) {
+async function mauticWebhookHandler (request) {
   if (request.method !== 'POST') {
     return simpleResponse(400, `Hi, I'm ${BOT_NAME}, expecting post request`)
   }
@@ -479,7 +503,7 @@ async function mauticWebhookHandler(request) {
  * and post message to slack
  * @param {Request} request
  */
-async function alertsWebhookHandler(request) {
+async function alertsWebhookHandler (request) {
   if (request.method !== 'POST') {
     return simpleResponse(400, `Hi, I'm ${BOT_NAME}, expecting post request`)
   }
