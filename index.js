@@ -516,8 +516,13 @@ async function alertsWebhookHandler (request) {
       .formData()
       .then(formData => {
         const alibabaAlertCode = Number(formData.get('curValue'))
+        const alibabaAlertState = String(formData.get('alertState'))
+
         //filter 6xx error codes
         if (alibabaAlertCode >= 600) return
+        //filter return to normal ok
+        if (alibabaAlertState === 'OK') return
+
         for (let e of formData.entries()) text += e.join(':') + '\n'
       })
       .catch(async e => (text = await request.clone().text()))
