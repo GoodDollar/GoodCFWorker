@@ -4,11 +4,6 @@ import _get from 'lodash/get'
 
 const SLACK_TOKEN = process.env.SLACK_TOKEN
 const BOT_NAME = 'GoodDolar Support'
-const PRIVATE_DB_PASS = process.env.ETORO_DB_PASS
-const NEXT_DB_PASS = process.env.NEXT_DB_PASS
-const PROD_DB_PASS = process.env.PROD_DB_PASS
-const QA_DB_PASS = process.env.QA_DB_PASS
-const DEV_DB_PASS = process.env.DEV_DB_PASS
 const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
 const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
 const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
@@ -19,10 +14,21 @@ const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
 const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
 const slackValidChannels = ['etoro_feedback_qa', 'devs']
 const prodBranches = []
-
+const passwords = {
+  dev: process.env.DEV_DB_PASS,
+  prod: process.env.PROD_DB_PASS,
+  next: process.env.NEXT_DB_PASS,
+  qa: process.env.QA_DB_PASS,
+}
+const hosts = {
+  dev: 'good-server',
+  prod: 'goodderver-prod',
+  next: 'goodserver-next',
+  qa: 'goodserver-qa',
+}
 addEventListener('fetch', event => {
   const url = event.request.url
-  console.log({url})
+  console.log({ url })
   const toMatch = `key=${AMPLITUDE_SECRET}`
   if (url.indexOf(toMatch) > 0) {
     event.respondWith(mauticWebhookHandler(event.request))
@@ -49,7 +55,7 @@ const sentryEvent = async (exOrMsg, extra) => {
       extra,
     }
   }
-  console.log('sentry req', data, {SENTRY_PROJECT_ID, SENTRY_KEY})
+  console.log('sentry req', data, { SENTRY_PROJECT_ID, SENTRY_KEY })
   // const sentryUrl = 'https://webhook.site/feaf92f9-cf45-4358-a904-ec1acd40afbb'
   const sentryUrl = `https://sentry.io/api/${SENTRY_PROJECT_ID}/store/`
   // const sentryUrl = 'https://postman-echo.com/post'
@@ -117,16 +123,8 @@ const forwardToReamaze = async event => {
 }
 
 const goodserverPost = async (cmd, data, env) => {
-  let server
-  switch (env) {
-    default:
-    case 'etoro':
-      server = 'https://etoro-server-production.herokuapp.com'
-      break
-    case 'prod':
-      server = 'https://goodserver-prod.herokuapp.com'
-      break
-  }
+  let server = `https://${hosts[env]}.herokuapp.com`
+
   const response = await fetch(server + cmd, {
     method: 'POST', // *GET, POST, PUT, DELETE, etc.
     headers: {
@@ -168,28 +166,14 @@ const amplitudePost = async events => {
   return response.json()
 }
 const handleCommand = async (cmd, msg) => {
-  let payload, password
-  console.log({cmd, msg})
+  let payload
+  let password
+  console.log({ cmd, msg })
   switch (cmd) {
     case '/queue':
       let [queueEnv, op, allow] = msg.split(' ')
-      let serverHost = 'good-server'
-      password = DEV_DB_PASS
-      switch (queueEnv) {
-        case 'qa':
-          serverHost = 'goodserver-qa'
-          password = QA_DB_PASS
-          break;
-        case 'prod':
-          serverHost = 'goodserver-prod'
-          password = PROD_DB_PASS
-          break;
-        case 'next':
-          serverHost = 'goodserver-next'
-          password = NEXT_DB_PASS
-          break;
-      }
-
+      password = passwords[queueEnv]
+      let serverHost = hosts[queueEnv]
       const params = {
         method: op === 'approve' ? 'POST' : 'GET',
         headers: {
@@ -208,7 +192,7 @@ const handleCommand = async (cmd, msg) => {
         params,
       ).then(response => response.json())
 
-      console.log('/queue command result:', {res, msg, serverHost})
+      console.log('/queue command result:', { res, msg, serverHost })
       return res
       break
     case '/release':
@@ -227,34 +211,34 @@ const handleCommand = async (cmd, msg) => {
           node_js: ['10.15'],
           addons: {},
           cache: false,
-          git: {depth: false},
-          env: {global: {DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO}},
+          git: { depth: false },
+          env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
           matrix: {},
           install: ['npm i -g auto-changelog'],
         },
         branch: DEPLOY_FROM,
       }
-      console.log('slack release:', {data})
+      console.log('slack release:', { data })
       let dapp, server
       switch (ENV) {
         default:
         case 'qa':
           data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'master'
           data.config.env.global.DEPLOY_TO = DEPLOY_TO || 'staging'
-            ; (data.config.script = [
-              'git checkout $DEPLOY_FROM',
-              'npm version $DEPLOY_VERSION -m "chore: release qa version %s [skip ci]"',
-              'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
-              'git fetch origin $DEPLOY_TO:$DEPLOY_TO',
-              'git checkout $DEPLOY_TO',
-              'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:$DEPLOY_TO --force',
-              'git fetch origin master:master',
-              'git checkout master',
-              'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
-              'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
-            ]),
-              (data.config.env.global.DEPLOY_VERSION =
-                DEPLOY_VERSION || 'prerelease')
+          ;(data.config.script = [
+            'git checkout $DEPLOY_FROM',
+            'npm version $DEPLOY_VERSION -m "chore: release qa version %s [skip ci]"',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
+            'git fetch origin $DEPLOY_TO:$DEPLOY_TO',
+            'git checkout $DEPLOY_TO',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:$DEPLOY_TO --force',
+            'git fetch origin master:master',
+            'git checkout master',
+            'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
+            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
+          ]),
+            (data.config.env.global.DEPLOY_VERSION =
+              DEPLOY_VERSION || 'prerelease')
           dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
           server = travisPost('GoodDollar%2FGoodServer/requests', data)
           return Promise.all([dapp, server])
@@ -294,17 +278,10 @@ const handleCommand = async (cmd, msg) => {
 
       break
     case '/getuser':
-      let [emailOrMobile, env = 'etoro'] = msg.split(/\s+/)
-      console.log('getuser', {msg, emailOrMobile, env})
-      switch (env) {
-        default:
-        case 'etoro':
-          password = PRIVATE_DB_PASS
-          break
-        case 'prod':
-          password = PROD_DB_PASS
-          break
-      }
+      let [emailOrMobile, env = 'dev'] = msg.split(/\s+/)
+      password = passwords[env]
+      console.log('getuser', { msg, emailOrMobile, env })
+
       payload = {
         password,
         email: emailOrMobile,
@@ -314,31 +291,23 @@ const handleCommand = async (cmd, msg) => {
           emailOrMobile.indexOf('+') == 0 ? emailOrMobile : `+${emailOrMobile}`
         delete payload.email
       }
-      console.log('getuser', {payload})
+      console.log('getuser', { payload })
       return await goodserverPost('/admin/user/get', payload, env)
       break
     case '/deleteuser':
       let [identifier, delenv = 'etoro'] = msg.split(/\s+/)
+      password = passwords[delenv]
+
       if (!identifier.match(/0x[0-9A-Fa-f]+$/)) {
         throw new Error('bad user identifier format')
       }
-      let delpass
-      switch (delenv) {
-        default:
-        case 'etoro':
-          delpass = PRIVATE_DB_PASS
-          break
-        case 'prod':
-          delpass = PROD_DB_PASS
-          break
-      }
 
       payload = {
-        password: delpass,
+        password,
         identifier,
       }
 
-      console.log({payload})
+      console.log({ payload })
       return await goodserverPost('/admin/user/delete', payload, delenv)
       break
     default:
@@ -415,7 +384,7 @@ async function slackWebhookHandler(request) {
     // const args = await command.parse(msg)
     // const result = args.result
     const result = await handleCommand(command, msg)
-    console.log('handleCommand:', {result})
+    console.log('handleCommand:', { result })
     const asText = `\`\`\`${JSON.stringify(result, null, ' ')}\`\`\``
     return slackResponse(asText)
   } catch (e) {
@@ -445,7 +414,7 @@ const handleEmailOpenEvent = events => {
         mauticId,
       },
     }
-    console.log({eventData})
+    console.log({ eventData })
     return eventData
   })
   return amplitudePost(eventsData)
@@ -472,7 +441,7 @@ const handleFormSubmitEvent = async events => {
         mauticId,
       },
     }
-    console.log('handleFormSubmit event:', {eventData})
+    console.log('handleFormSubmit event:', { eventData })
     return eventData
   })
   return amplitudePost(eventsData)
@@ -500,15 +469,15 @@ async function mauticWebhookHandler(request) {
     const events = Array.isArray(json[eventKey])
       ? json[eventKey]
       : [json[eventKey]]
-    console.log({eventKey})
+    console.log({ eventKey })
     switch (eventKey) {
       case 'mautic.email_on_open':
         res = await handleEmailOpenEvent(events)
-        console.log({res})
+        console.log({ res })
         break
       case 'mautic.form_on_submit':
         res = await handleFormSubmitEvent(events)
-        console.log('amplitude response:', {res})
+        console.log('amplitude response:', { res })
         break
     }
     return simpleResponse(200, `ok`)
@@ -545,7 +514,7 @@ async function alertsWebhookHandler(request) {
         for (let e of formData.entries()) text += e.join(':') + '\n'
       })
       .catch(async e => (text = await request.clone().text()))
-    console.log({text})
+    console.log({ text })
     await sentryEvent('alertsWebhookHandler incoming', {
       text: request.text(),
     })
@@ -568,7 +537,7 @@ const postToSlack = async text => {
   const data = {
     text,
   }
-  console.log({data})
+  console.log({ data })
   const response = await fetch(SLACK_MONITORING_WEBHOOK, {
     method: 'POST', // *GET, POST, PUT, DELETE, etc.
     headers: {
