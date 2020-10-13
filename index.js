@@ -12,7 +12,7 @@ const REAMAZE_USER = process.env.REAMAZE_USER
 const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
 const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
 const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
-const slackValidChannels = ['etoro_feedback_qa', 'devs']
+const slackValidChannels = ['support-gooddollar', 'devs']
 const prodBranches = []
 const passwords = {
   dev: process.env.DEV_DB_PASS,
