@@ -3,7 +3,7 @@
 import _get from 'lodash/get'
 
 const SLACK_TOKEN = process.env.SLACK_TOKEN
-const BOT_NAME = 'GoodDolar Support'
+const BOT_NAME = 'GoodDollar Support'
 const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
 const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
 const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
@@ -22,7 +22,7 @@ const passwords = {
 }
 const hosts = {
   dev: 'good-server',
-  prod: 'goodderver-prod',
+  prod: 'goodserver-prod',
   next: 'goodserver-next',
   qa: 'goodserver-qa',
 }
@@ -118,7 +118,7 @@ const forwardToReamaze = async event => {
     )
     console.log('reamaze response:', res.json())
   } catch (e) {
-    console.log('forwardToReamze error:', e)
+    console.log('forwardToReamaze error:', e)
   }
 }
 
