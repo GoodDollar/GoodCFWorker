@@ -13,10 +13,10 @@
   "devDependencies": {
     "babel-register": "^6.26.0",
     "prettier": "^1.18.2",
-    "webpack": "^4.41.2"
+    "webpack": "^4.46.0"
   },
   "dependencies": {
-    "dotenv-webpack": "^1.7.0",
-    "lodash": "^4.17.15"
+    "dotenv-webpack": "^1.8.0",
+    "lodash": "^4.17.21"
   }
 }
