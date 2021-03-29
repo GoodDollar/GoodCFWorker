@@ -223,24 +223,22 @@ const handleCommand = async (cmd, msg) => {
 
       console.log('slack release:', { ENV, DEPLOY_FROM, DEPLOY_TO })
 
-      const repo = 'GoodDapp'
-      const workflowId = GITHUB_DAPP_WORKFLOW_ID
+      let repo = 'GoodDapp'
       const dappPromise = githubPost(
         ENV,
         DEPLOY_FROM,
         DEPLOY_TO,
         repo,
-        workflowId,
+        GITHUB_DAPP_WORKFLOW_ID,
       )
 
-      const repo = 'GoodServer'
-      const workflowId = GITHUB_SERVER_WORKFLOW_ID
+      repo = 'GoodServer'
       const serverPromise = githubPost(
         ENV,
         DEPLOY_FROM,
         DEPLOY_TO,
         repo,
-        workflowId,
+        GITHUB_SERVER_WORKFLOW_ID,
       )
       return Promise.all([serverPromise, dappPromise])
       break
