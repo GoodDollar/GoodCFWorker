@@ -12,6 +12,7 @@ const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
 const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
 const GITHUB_DAPP_WORKFLOW_ID = process.env.GITHUB_DAPP_WORKFLOW_ID
 const GITHUB_SERVER_WORKFLOW_ID = process.env.GITHUB_SERVER_WORKFLOW_ID
+const GITHUB_ORGANIZATION = process.env.GITHUB_ORGANIZATION
 const GITHUB_USERNAME = process.env.GITHUB_USERNAME
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN
 const slackValidChannels = ['support-gooddollar', 'devs']
@@ -143,13 +144,13 @@ const githubPost = async (
   repo,
   workflowId,
 ) => {
-  console.log('slack release github action:', {
+  console.log('slack release github action:', JSON.stringify({
     releaseType,
     sourceBranch,
     targetBranch,
     repo,
     workflowId,
-  })
+  }))
 
   const authToken = btoa(GITHUB_USERNAME + ':' + GITHUB_TOKEN)
   const body = {
@@ -160,12 +161,13 @@ const githubPost = async (
     },
   }
   const res = await fetch(
-    `https://api.github.com/repos/omerzam/${repo}/actions/workflows/${workflowId}/dispatches`,
+    `https://api.github.com/repos/${GITHUB_ORGANIZATION}/${repo}/actions/workflows/${workflowId}/dispatches`,
     {
       method: 'POST',
       headers: {
         accept: 'application/vnd.github.v3+json',
         Authorization: `Basic ${authToken}`,
+        "User-Agent": "simple-worker-slack-bot"
       },
       body: JSON.stringify(body),
     },
@@ -221,7 +223,7 @@ const handleCommand = async (cmd, msg) => {
     case '/release':
       let [ENV, DEPLOY_FROM, DEPLOY_TO] = msg.split(' ')
 
-      console.log('slack release:', { ENV, DEPLOY_FROM, DEPLOY_TO })
+      console.log('slack release:', JSON.stringify({ ENV, DEPLOY_FROM, DEPLOY_TO }))
 
       let repo = 'GoodDapp'
       const dappPromise = githubPost(
@@ -349,7 +351,7 @@ async function slackWebhookHandler(request) {
     // const args = await command.parse(msg)
     // const result = args.result
     const result = await handleCommand(command, msg)
-    console.log('handleCommand:', { result })
+    console.log('handleCommand:', JSON.stringify({ result }))
     const asText = `\`\`\`${JSON.stringify(result, null, ' ')}\`\`\``
     return slackResponse(asText)
   } catch (e) {
