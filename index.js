@@ -2,25 +2,13 @@
 // Keep this value secret.
 import _get from 'lodash/get'
 
-const SLACK_TOKEN = process.env.SLACK_TOKEN
 const BOT_NAME = 'GoodDollar Support'
-const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
-const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
-const SENTRY_KEY = process.env.SENTRY_KEY
-const REAMAZE_USER = process.env.REAMAZE_USER
-const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
-const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
-const GITHUB_DAPP_WORKFLOW_ID = process.env.GITHUB_DAPP_WORKFLOW_ID
-const GITHUB_SERVER_WORKFLOW_ID = process.env.GITHUB_SERVER_WORKFLOW_ID
-const GITHUB_ORGANIZATION = process.env.GITHUB_ORGANIZATION
-const GITHUB_USERNAME = process.env.GITHUB_USERNAME
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN
 const slackValidChannels = ['support-gooddollar', 'devs']
 const passwords = {
-  dev: process.env.DEV_DB_PASS,
-  prod: process.env.PROD_DB_PASS,
-  next: process.env.NEXT_DB_PASS,
-  qa: process.env.QA_DB_PASS,
+  dev: DEV_DB_PASS,
+  prod: PROD_DB_PASS,
+  next: NEXT_DB_PASS,
+  qa: QA_DB_PASS,
 }
 const hosts = {
   dev: 'good-server',
