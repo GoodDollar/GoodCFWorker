@@ -2,27 +2,17 @@
 // Keep this value secret.
 import _get from 'lodash/get'
 
-const SLACK_TOKEN = process.env.SLACK_TOKEN
-const BOT_NAME = 'GoodDolar Support'
-const AMPLITUDE_KEY = process.env.AMPLITUDE_KEY
-const AMPLITUDE_SECRET = process.env.AMPLITUDE_SECRET
-const SENTRY_PROJECT_ID = process.env.SENTRY_PROJECT
-const SENTRY_KEY = process.env.SENTRY_KEY
-const REAMAZE_USER = process.env.REAMAZE_USER
-const REAMAZE_TOKEN = process.env.REAMAZE_TOKEN
-const TRAVIS_TOKEN = process.env.TRAVIS_TOKEN
-const SLACK_MONITORING_WEBHOOK = process.env.SLACK_MONITORING_WEBHOOK
+const BOT_NAME = 'GoodDollar Support'
 const slackValidChannels = ['support-gooddollar', 'devs']
-const prodBranches = []
 const passwords = {
-  dev: process.env.DEV_DB_PASS,
-  prod: process.env.PROD_DB_PASS,
-  next: process.env.NEXT_DB_PASS,
-  qa: process.env.QA_DB_PASS,
+  dev: DEV_DB_PASS,
+  prod: PROD_DB_PASS,
+  next: NEXT_DB_PASS,
+  qa: QA_DB_PASS,
 }
 const hosts = {
   dev: 'good-server',
-  prod: 'goodderver-prod',
+  prod: 'goodserver-prod',
   next: 'goodserver-next',
   qa: 'goodserver-qa',
 }
@@ -118,7 +108,7 @@ const forwardToReamaze = async event => {
     )
     console.log('reamaze response:', res.json())
   } catch (e) {
-    console.log('forwardToReamze error:', e)
+    console.log('forwardToReamaze error:', e)
   }
 }
 
@@ -135,21 +125,44 @@ const goodserverPost = async (cmd, data, env) => {
   return response.json()
 }
 
-const travisPost = async (repocmd, data) => {
-  const tosend = {
-    request: data,
-  }
-  const response = await fetch('https://api.travis-ci.com/repo/' + repocmd, {
-    method: 'POST', // *GET, POST, PUT, DELETE, etc.
-    headers: {
-      'Content-Type': 'application/json',
-      'Travis-API-Version': 3,
-      Authorization: `token ${TRAVIS_TOKEN}`,
+const githubPost = async (
+  releaseType,
+  sourceBranch,
+  targetBranch,
+  repo,
+  workflowId,
+) => {
+  console.log('slack release github action:', JSON.stringify({
+    releaseType,
+    sourceBranch,
+    targetBranch,
+    repo,
+    workflowId,
+  }))
+
+  const authToken = btoa(GITHUB_USERNAME + ':' + GITHUB_TOKEN)
+  const body = {
+    ref: sourceBranch,
+    inputs: {
+      release: releaseType,
+      targetbranch: targetBranch,
     },
-    body: JSON.stringify(tosend), // body data type must match "Content-Type" header
-  })
-  return response.json()
+  }
+  const res = await fetch(
+    `https://api.github.com/repos/${GITHUB_ORGANIZATION}/${repo}/actions/workflows/${workflowId}/dispatches`,
+    {
+      method: 'POST',
+      headers: {
+        accept: 'application/vnd.github.v3+json',
+        Authorization: `Basic ${authToken}`,
+        "User-Agent": "simple-worker-slack-bot"
+      },
+      body: JSON.stringify(body),
+    },
+  )
+  return res
 }
+
 const amplitudePost = async events => {
   const data = {
     api_key: process.env.AMPLITUDE_KEY,
@@ -196,86 +209,28 @@ const handleCommand = async (cmd, msg) => {
       return res
       break
     case '/release':
-      let [ENV, DEPLOY_FROM, DEPLOY_TO, DEPLOY_VERSION] = msg.split(' ')
-      let data = {
-        message: `Triggering release from slack ${JSON.stringify({
-          ENV,
-          DEPLOY_FROM,
-          DEPLOY_TO,
-          DEPLOY_VERSION,
-        })}`,
-        merge_mode: 'replace',
-        config: {
-          language: 'node_js',
-          merge_mode: 'replace',
-          node_js: ['10.15'],
-          addons: {},
-          cache: false,
-          git: { depth: false },
-          env: { global: { DEPLOY_VERSION, DEPLOY_FROM, DEPLOY_TO } },
-          matrix: {},
-          install: ['npm i -g auto-changelog'],
-        },
-        branch: DEPLOY_FROM,
-      }
-      console.log('slack release:', { data })
-      let dapp, server
-      switch (ENV) {
-        default:
-        case 'qa':
-          data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'master'
-          data.config.env.global.DEPLOY_TO = DEPLOY_TO || 'staging'
-          ;(data.config.script = [
-            'git checkout $DEPLOY_FROM',
-            'npm version $DEPLOY_VERSION -m "chore: release qa version %s [skip ci]"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
-            'git fetch origin $DEPLOY_TO:$DEPLOY_TO',
-            'git checkout $DEPLOY_TO',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:$DEPLOY_TO --force',
-            'git fetch origin master:master',
-            'git checkout master',
-            'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
-          ]),
-            (data.config.env.global.DEPLOY_VERSION =
-              DEPLOY_VERSION || 'prerelease')
-          dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
-          server = travisPost('GoodDollar%2FGoodServer/requests', data)
-          return Promise.all([dapp, server])
-          break
-        case 'prod':
-          data.config.env.global.DEPLOY_FROM = DEPLOY_FROM || 'staging'
-          data.config.env.global.DEPLOY_TO = DEPLOY_TO || 'production'
-          data.config.env.global.DEPLOY_VERSION = DEPLOY_VERSION || 'minor'
-          data.config.script = [
-            'git checkout $DEPLOY_FROM',
-            'npm version $DEPLOY_VERSION -m "chore: release version %s"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM --follow-tags',
-          ]
-          if (prodBranches.includes(DEPLOY_TO) === false)
-            prodBranches.push(DEPLOY_TO)
+      let [ENV, DEPLOY_FROM, DEPLOY_TO] = msg.split(' ')
 
-          prodBranches.forEach(b => {
-            data.config.script.push(
-              `git fetch origin ${b}:${b}`,
-              `git checkout ${b}`,
-              `git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG $DEPLOY_FROM:${b} --force`,
-            )
-          })
+      console.log('slack release:', JSON.stringify({ ENV, DEPLOY_FROM, DEPLOY_TO }))
 
-          data.config.script.push(
-            'git fetch origin master',
-            'git checkout master',
-            'git merge $DEPLOY_FROM -m "Merge branch $DEPLOY_FROM [skip ci]"',
-            'git push https://$GITHUB_AUTH@github.com/$TRAVIS_REPO_SLUG master',
-          )
+      let repo = 'GoodDapp'
+      const dappPromise = githubPost(
+        ENV,
+        DEPLOY_FROM,
+        DEPLOY_TO,
+        repo,
+        GITHUB_DAPP_WORKFLOW_ID,
+      )
 
-          dapp = travisPost('GoodDollar%2FGoodDAPP/requests', data)
-          server = travisPost('GoodDollar%2FGoodServer/requests', data)
-          return Promise.all([dapp, server])
-          break
-      }
-
+      repo = 'GoodServer'
+      const serverPromise = githubPost(
+        ENV,
+        DEPLOY_FROM,
+        DEPLOY_TO,
+        repo,
+        GITHUB_SERVER_WORKFLOW_ID,
+      )
+      return Promise.all([serverPromise, dappPromise])
       break
     case '/getuser':
       let [emailOrMobile, env = 'dev'] = msg.split(/\s+/)
@@ -384,7 +339,7 @@ async function slackWebhookHandler(request) {
     // const args = await command.parse(msg)
     // const result = args.result
     const result = await handleCommand(command, msg)
-    console.log('handleCommand:', { result })
+    console.log('handleCommand:', JSON.stringify({ result }))
     const asText = `\`\`\`${JSON.stringify(result, null, ' ')}\`\`\``
     return slackResponse(asText)
   } catch (e) {

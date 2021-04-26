@@ -8,3 +8,5 @@ worker/
 node_modules/
 .cargo-ok
 dist/
+.vscode
+.env
