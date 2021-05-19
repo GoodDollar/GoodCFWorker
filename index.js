@@ -45,9 +45,9 @@ const sentryEvent = async (exOrMsg, extra) => {
       extra,
     }
   }
-  console.log('sentry req', data, { SENTRY_PROJECT_ID, SENTRY_KEY })
+  console.log('sentry req', data, { SENTRY_PROJECT, SENTRY_KEY })
   // const sentryUrl = 'https://webhook.site/feaf92f9-cf45-4358-a904-ec1acd40afbb'
-  const sentryUrl = `https://sentry.io/api/${SENTRY_PROJECT_ID}/store/`
+  const sentryUrl = `https://sentry.io/api/${SENTRY_PROJECT}/store/`
   // const sentryUrl = 'https://postman-echo.com/post'
   const res = await fetch(sentryUrl, {
     headers: {
@@ -132,13 +132,16 @@ const githubPost = async (
   repo,
   workflowId,
 ) => {
-  console.log('slack release github action:', JSON.stringify({
-    releaseType,
-    sourceBranch,
-    targetBranch,
-    repo,
-    workflowId,
-  }))
+  console.log(
+    'slack release github action:',
+    JSON.stringify({
+      releaseType,
+      sourceBranch,
+      targetBranch,
+      repo,
+      workflowId,
+    }),
+  )
 
   const authToken = btoa(GITHUB_USERNAME + ':' + GITHUB_TOKEN)
   const body = {
@@ -155,7 +158,7 @@ const githubPost = async (
       headers: {
         accept: 'application/vnd.github.v3+json',
         Authorization: `Basic ${authToken}`,
-        "User-Agent": "simple-worker-slack-bot"
+        'User-Agent': 'simple-worker-slack-bot',
       },
       body: JSON.stringify(body),
     },
@@ -211,7 +214,10 @@ const handleCommand = async (cmd, msg) => {
     case '/release':
       let [ENV, DEPLOY_FROM, DEPLOY_TO] = msg.split(' ')
 
-      console.log('slack release:', JSON.stringify({ ENV, DEPLOY_FROM, DEPLOY_TO }))
+      console.log(
+        'slack release:',
+        JSON.stringify({ ENV, DEPLOY_FROM, DEPLOY_TO }),
+      )
 
       let repo = 'GoodDapp'
       const dappPromise = githubPost(
@@ -469,15 +475,14 @@ async function alertsWebhookHandler(request) {
         for (let e of formData.entries()) text += e.join(':') + '\n'
       })
       .catch(async e => (text = await request.clone().text()))
-    console.log({ text })
-    await sentryEvent('alertsWebhookHandler incoming', {
-      text: request.text(),
-    })
+    // await sentryEvent('alertsWebhookHandler incoming', {
+    //   text: request.text(),
+    // })
     if (text !== '') {
       const response = await postToSlack(text).catch(e => e)
-      await sentryEvent('alertsWebhookHandler slack response', {
-        response,
-      })
+      // await sentryEvent('alertsWebhookHandler slack response', {
+      //   response,
+      // })
     }
     return simpleResponse(200, `ok`)
   } catch (e) {
