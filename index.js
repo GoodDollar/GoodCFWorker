@@ -1,6 +1,8 @@
 // SLACK_TOKEN is used to authenticate requests are from Slack.
 // Keep this value secret.
 import _get from 'lodash/get'
+import _isEmpty from 'lodash/isEmpty'
+import { setCache, getCache } from './cache'
 
 const BOT_NAME = 'GoodDollar Support'
 const slackValidChannels = ['support-gooddollar', 'devs']
@@ -18,14 +20,45 @@ const hosts = {
 }
 addEventListener('fetch', event => {
   const url = event.request.url
-  console.log({ url })
   const toMatch = `key=${AMPLITUDE_SECRET}`
+  console.log({ url })
+  if (url.indexOf('/rates') > 0) {
+    return event.respondWith(ratesWebhookHandler(event.request))
+  }
   if (url.indexOf(toMatch) > 0) {
-    event.respondWith(mauticWebhookHandler(event.request))
-  } else if (url.indexOf('key=goodalerts') > 0) {
-    event.respondWith(alertsWebhookHandler(event.request))
-  } else event.respondWith(slackWebhookHandler(event.request))
+    return event.respondWith(mauticWebhookHandler(event.request))
+  }
+  if (url.indexOf('key=goodalerts') > 0) {
+    return event.respondWith(alertsWebhookHandler(event.request))
+  }
+  return event.respondWith(slackWebhookHandler(event.request))
 })
+
+const ratesWebhookHandler = async req => {
+  const ratesTTL = 60
+  const ratesKey = 'ratestest'
+
+  const defipulseKey = DEFIPULSE_KEY
+  const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
+
+  let { value: rates, metadata } = await getCache('ratesCache')
+  console.log({ rates })
+  if (!rates || rates === '{}') {
+    console.log('fetching rates')
+    rates = await fetch(interestRatesUrl, {
+      method: 'GET', // *GET, POST, PUT, DELETE, etc.
+      headers: {
+        Accept: '*/*',
+      },
+    }).then(_ => _.json())
+    rates = JSON.stringify(rates)
+    setCache('ratesCache', rates, ratesTTL)
+  }
+  return new Response(rates, {
+    headers: jsonHeaders,
+    status: 200,
+  })
+}
 
 const sentryEvent = async (exOrMsg, extra) => {
   let data
