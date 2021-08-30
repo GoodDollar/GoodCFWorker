@@ -5,6 +5,9 @@ account_id = "2a94650a01a5a443da8d4210ab9beac6"
 workers_dev = true
 route = ""
 zone_id = "dca0659660dc9735602a2068c666d5fe"
+kv_namespaces = [
+  { binding = "KVSTORE", id = "e925f72d93d1472a84bc08d93790a128", preview_id = "2fe48a14a8584617a24a5af12c21806d"}
+]
 [vars]
 SENTRY_PROJECT = 1862143
 DEBUG=false

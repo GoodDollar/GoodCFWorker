@@ -35,22 +35,20 @@ addEventListener('fetch', event => {
 })
 
 const ratesWebhookHandler = async req => {
-  const ratesTTL = 60
-  const ratesKey = 'ratestest'
-
-  const defipulseKey = DEFIPULSE_KEY
-  const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
+  const ratesTTL = 60 * 60
 
   let { value: rates, metadata } = await getCache('ratesCache')
-  console.log({ rates })
+  // console.log({ rates })
   if (!rates || rates === '{}') {
-    console.log('fetching rates')
+    const defipulseKey = DEFIPULSE_KEY
+    const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
+    // console.log('fetching rates')
     rates = await fetch(interestRatesUrl, {
       method: 'GET', // *GET, POST, PUT, DELETE, etc.
       headers: {
         Accept: '*/*',
       },
-    }).then(_ => _.json())
+    }).then(_ => _get(_.json(), 'rates', {}))
     rates = JSON.stringify(rates)
     setCache('ratesCache', rates, ratesTTL)
   }
