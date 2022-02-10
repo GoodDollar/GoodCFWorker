@@ -2,6 +2,9 @@
 // Keep this value secret.
 import _get from 'lodash/get'
 import _isEmpty from 'lodash/isEmpty'
+import _groupBy from 'lodash/groupBy'
+import _flatten from 'lodash/flatten'
+import _map from 'lodash/map'
 import { setCache, getCache } from './cache'
 
 const BOT_NAME = 'GoodDollar Support'
@@ -34,26 +37,64 @@ addEventListener('fetch', event => {
   return event.respondWith(slackWebhookHandler(event.request))
 })
 
+const defipulseRates = async () => {
+  const defipulseKey = DEFIPULSE_KEY
+  const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
+  // console.log('fetching rates')
+  rates = await fetch(interestRatesUrl, {
+    method: 'GET', // *GET, POST, PUT, DELETE, etc.
+    headers: {
+      Accept: '*/*',
+    },
+  }).then(_ => _.json())
+  rates = _get(rates, 'rates', {})
+  return rates
+}
+
+const defirateRates = async () => {
+  const ratesHtml = await fetch('https://defirate.com/lend/').then(_ =>
+    _.text(),
+  )
+  const matches = ratesHtml.match(/{\n\s+"@context":(.*?\n\s+){11,13}}/g)
+  const rates = matches
+    .map(JSON.parse)
+    .map(r => ({
+      name: r.name,
+      currency: r.amount.currency,
+      rate: r.interestRate,
+    }))
+    .filter(_ => _.currency === 'DAI' || _.currency === 'USDC')
+  const dailyRates = _flatten(
+    _map(_groupBy(rates, 'currency'), (v, k) => v.slice(0, v.length / 2)),
+  )
+  const avg30DaysRates = _flatten(
+    _map(_groupBy(rates, 'currency'), (v, k) => v.slice(v.length / 2)),
+  )
+  return { dailyRates, avg30DaysRates }
+}
+
 const ratesWebhookHandler = async req => {
   const ratesTTL = 60 * 60
 
   let { value: rates, metadata } = await getCache('ratesCache')
-  // console.log({ rates })
+  let lastUpdated = _get(metadata, 'lastUpdated', 0)
+  // console.log('cached', { rates })
   if (!rates || rates === '{}') {
-    const defipulseKey = DEFIPULSE_KEY
-    const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
-    // console.log('fetching rates')
-    rates = await fetch(interestRatesUrl, {
-      method: 'GET', // *GET, POST, PUT, DELETE, etc.
-      headers: {
-        Accept: '*/*',
-      },
-    }).then(_ => _get(_.json(), 'rates', {}))
-    rates = JSON.stringify(rates)
-    setCache('ratesCache', rates, ratesTTL)
+    lastUpdated = Date.now()
+    const { dailyRates, avg30DaysRates } = await defirateRates()
+    rates = avg30DaysRates
+    console.log('set cache', { rates })
+    await setCache('ratesCache', JSON.stringify(rates), ratesTTL, {
+      lastUpdated,
+    })
   }
+
   return new Response(rates, {
-    headers: jsonHeaders,
+    headers: new Headers([
+      ['Content-Type', 'application/json'],
+      ['cache-control', 'max-age=3600'],
+      ['last-modified', lastUpdated],
+    ]),
     status: 200,
   })
 }
