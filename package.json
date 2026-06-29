@@ -17,6 +17,8 @@
   },
   "dependencies": {
     "dotenv-webpack": "^1.8.0",
-    "lodash": "^4.17.21"
-  }
+    "lodash": "^4.17.21",
+    "wrangler": "^3.78.12"
+  },
+  "packageManager": "yarn@3.6.1+sha256.811210abb5fb5751da12ead8a9cbc0c150b07e43ac9cbedec6752d22abfd2bd6"
 }

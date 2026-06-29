@@ -1,18 +1,20 @@
 name = "goodsupport"
-type = "webpack"
-webpack_config = "webpack.config.js"
+# type = "webpack"
+compatibility_date = "2021-07-01"
+node_compat = true
+# webpack_config = "webpack.config.js"
 account_id = "2a94650a01a5a443da8d4210ab9beac6"
 workers_dev = true
-route = ""
-zone_id = "dca0659660dc9735602a2068c666d5fe"
+main = "./index.js"
+# route = ""
+# zone_id = "dca0659660dc9735602a2068c666d5fe"
 kv_namespaces = [
-  { binding = "KVSTORE", id = "e925f72d93d1472a84bc08d93790a128", preview_id = "2fe48a14a8584617a24a5af12c21806d"}
+  { binding = "KVSTORE", id = "73d02b8c05bf4161ae78b2795c5ba220", preview_id = "ef8d7f43effb4860930d4ccdd35ad79f" },
 ]
 [vars]
 SENTRY_PROJECT = 1862143
-DEBUG=false
-REAMAZE_USER="hadar@gooddollar.org"
-GITHUB_DAPP_WORKFLOW_ID=4014924
-GITHUB_SERVER_WORKFLOW_ID=4079362
-GITHUB_ORGANIZATION="GoodDollar"
-GITHUB_USERNAME="gooddollar-techadmin"
+DEBUG = false
+GITHUB_DAPP_WORKFLOW_ID = 4014924
+GITHUB_SERVER_WORKFLOW_ID = 4079362
+GITHUB_ORGANIZATION = "GoodDollar"
+GITHUB_USERNAME = "gooddollar-techadmin"

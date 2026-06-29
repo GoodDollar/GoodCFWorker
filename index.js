@@ -8,7 +8,7 @@ import _map from 'lodash/map'
 import { setCache, getCache } from './cache'
 
 const BOT_NAME = 'GoodDollar Support'
-const slackValidChannels = ['support-gooddollar', 'devs']
+const slackValidChannels = ['development', 'goodlabs']
 const passwords = {
   dev: DEV_DB_PASS,
   prod: PROD_DB_PASS,
@@ -24,80 +24,9 @@ const hosts = {
 addEventListener('fetch', event => {
   const url = event.request.url
   const toMatch = `key=${AMPLITUDE_SECRET}`
-  console.log({ url })
-  if (url.indexOf('/rates') > 0) {
-    return event.respondWith(ratesWebhookHandler(event.request))
-  }
-  if (url.indexOf(toMatch) > 0) {
-    return event.respondWith(mauticWebhookHandler(event.request))
-  }
-  if (url.indexOf('key=goodalerts') > 0) {
-    return event.respondWith(alertsWebhookHandler(event.request))
-  }
+  console.log('fetch event', { url, event })
   return event.respondWith(slackWebhookHandler(event.request))
 })
-
-const defipulseRates = async () => {
-  const defipulseKey = DEFIPULSE_KEY
-  const interestRatesUrl = `https://data-api.defipulse.com/api/v1/defipulse/api/GetRates?token=DAI&api-key=${defipulseKey}`
-  // console.log('fetching rates')
-  rates = await fetch(interestRatesUrl, {
-    method: 'GET', // *GET, POST, PUT, DELETE, etc.
-    headers: {
-      Accept: '*/*',
-    },
-  }).then(_ => _.json())
-  rates = _get(rates, 'rates', {})
-  return rates
-}
-
-const defirateRates = async () => {
-  const ratesHtml = await fetch('https://defirate.com/lend/').then(_ =>
-    _.text(),
-  )
-  const matches = ratesHtml.match(/{\n\s+"@context":(.*?\n\s+){11,13}}/g)
-  const rates = matches
-    .map(JSON.parse)
-    .map(r => ({
-      name: r.name,
-      currency: r.amount.currency,
-      rate: r.interestRate,
-    }))
-    .filter(_ => _.currency === 'DAI' || _.currency === 'USDC')
-  const dailyRates = _flatten(
-    _map(_groupBy(rates, 'currency'), (v, k) => v.slice(0, v.length / 2)),
-  )
-  const avg30DaysRates = _flatten(
-    _map(_groupBy(rates, 'currency'), (v, k) => v.slice(v.length / 2)),
-  )
-  return { dailyRates, avg30DaysRates }
-}
-
-const ratesWebhookHandler = async req => {
-  const ratesTTL = 60 * 60
-
-  let { value: rates, metadata } = await getCache('ratesCache')
-  let lastUpdated = _get(metadata, 'lastUpdated', 0)
-  // console.log('cached', { rates })
-  if (!rates || rates === '{}') {
-    lastUpdated = Date.now()
-    const { dailyRates, avg30DaysRates } = await defirateRates()
-    rates = avg30DaysRates
-    console.log('set cache', { rates })
-    await setCache('ratesCache', JSON.stringify(rates), ratesTTL, {
-      lastUpdated,
-    })
-  }
-
-  return new Response(rates, {
-    headers: new Headers([
-      ['Content-Type', 'application/json'],
-      ['cache-control', 'max-age=3600'],
-      ['last-modified', lastUpdated],
-    ]),
-    status: 200,
-  })
-}
 
 const sentryEvent = async (exOrMsg, extra) => {
   let data
@@ -132,56 +61,6 @@ const sentryEvent = async (exOrMsg, extra) => {
     method: 'POST',
   }).then(r => r.text())
   console.log('sentry res:', res)
-}
-
-/**
- * forward mautic form to reamaze
- * @param {} events
- */
-const forwardToReamaze = async event => {
-  try {
-    const userEmail =
-      _get(event, 'submission.lead.fields.core.email.value') ||
-      _get(event, 'submission.results.email', '')
-    const formKey = _get(event, 'submission.form.name', '')
-    const formData = JSON.stringify(
-      _get(event, 'submission.results', ''),
-      null,
-      2,
-    )
-    // const formData = JSON.stringify(_get(event, 'submission.results', ''))
-
-    const data = {
-      conversation: {
-        subject: `New Request - ${formKey}`,
-        category: 'support',
-        message: {
-          body: formData,
-          recipients: ['support@gooddollar.org'],
-        },
-        user: {
-          email: userEmail,
-        },
-      },
-    }
-    console.log('forwardToReamaze:', data)
-    const auth = btoa(`${REAMAZE_USER}:${REAMAZE_TOKEN}`)
-    const res = await fetch(
-      `https://gooddollar.reamaze.io/api/v1/conversations`,
-      {
-        headers: {
-          Authorization: `Basic ${auth}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-        },
-        body: JSON.stringify(data),
-        method: 'POST',
-      },
-    )
-    console.log('reamaze response:', res.json())
-  } catch (e) {
-    console.log('forwardToReamaze error:', e)
-  }
 }
 
 const goodserverPost = async (cmd, data, env) => {
@@ -319,9 +198,13 @@ const handleCommand = async (cmd, msg) => {
         password,
         email: emailOrMobile,
       }
-      if (emailOrMobile.match(/\+?[0-9]+$/)) {
+      if (emailOrMobile.match(/^\+?[0-9]+$/)) {
         payload.mobile =
           emailOrMobile.indexOf('+') == 0 ? emailOrMobile : `+${emailOrMobile}`
+        delete payload.email
+      }
+      if (emailOrMobile.match(/^0x[0-9a-f]+$/)) {
+        payload.identifierHash = emailOrMobile
         delete payload.email
       }
       console.log('getuser', { payload })
@@ -331,13 +214,18 @@ const handleCommand = async (cmd, msg) => {
       let [identifier, delenv = 'etoro'] = msg.split(/\s+/)
       password = passwords[delenv]
 
-      if (!identifier.match(/0x[0-9A-Fa-f]+$/)) {
-        throw new Error('bad user identifier format')
-      }
-
       payload = {
         password,
-        identifier,
+        email: identifier,
+      }
+      if (identifier.match(/^\+?[0-9]+$/)) {
+        payload.mobile =
+          identifier.indexOf('+') == 0 ? identifier : `+${identifier}`
+        delete payload.email
+      }
+      if (identifier.match(/^0x[0-9a-f]+$/)) {
+        payload.identifierHash = identifier
+        delete payload.email
       }
 
       console.log({ payload })
@@ -406,6 +294,10 @@ async function slackWebhookHandler(request) {
 
   try {
     let formData = await request.formData()
+    console.log(
+      'slackWebhookHandler formData:',
+      JSON.stringify([...formData.entries()]),
+    )
     if (formData.get('token') !== SLACK_TOKEN) {
       return simpleResponse(403, 'invalid Slack verification token')
     }
@@ -451,72 +343,6 @@ const handleEmailOpenEvent = events => {
     return eventData
   })
   return amplitudePost(eventsData)
-}
-
-const handleFormSubmitEvent = async events => {
-  await Promise.all(events.map(async event => forwardToReamaze(event)))
-  const eventsData = events.map(event => {
-    const user_id = _get(event, 'submission.lead.fields.core.email.value')
-    const mauticId = _get(event, 'submission.lead.id')
-    const formKey = _get(event, 'submission.form.name', '')
-      .toUpperCase()
-      .replace(/\s+/g, '_')
-    const formId = _get(event, 'submission.form.id', 0)
-    const event_type = 'MAUTIC_FORM_SUBMIT'
-    const eventData = {
-      user_id,
-      event_type,
-      event_properties: {
-        formId,
-        formKey,
-      },
-      user_properties: {
-        mauticId,
-      },
-    }
-    console.log('handleFormSubmit event:', { eventData })
-    return eventData
-  })
-  return amplitudePost(eventsData)
-}
-/**
- * mauticWebhookHandler handles an incoming mautic
- * webhook and generates amplitude event.
- * @param {Request} request
- */
-async function mauticWebhookHandler(request) {
-  if (request.method !== 'POST') {
-    return simpleResponse(400, `Hi, I'm ${BOT_NAME}, expecting post request`)
-  }
-
-  let res
-  try {
-    const json = await request.json()
-    const eventKey = Object.keys(json)
-      .filter(_ => _.indexOf('mautic.') === 0)
-      .pop()
-    await sentryEvent('mauticWebhookHandler incoming', {
-      eventKey,
-      json,
-    })
-    const events = Array.isArray(json[eventKey])
-      ? json[eventKey]
-      : [json[eventKey]]
-    console.log({ eventKey })
-    switch (eventKey) {
-      case 'mautic.email_on_open':
-        res = await handleEmailOpenEvent(events)
-        console.log({ res })
-        break
-      case 'mautic.form_on_submit':
-        res = await handleFormSubmitEvent(events)
-        console.log('amplitude response:', { res })
-        break
-    }
-    return simpleResponse(200, `ok`)
-  } catch (e) {
-    return simpleResponse(400, `Sorry, couldn't perform your request: ${e}`)
-  }
 }
 
 /**
