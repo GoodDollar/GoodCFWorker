@@ -1,7 +1,7 @@
 name = "goodsupport"
 # type = "webpack"
 compatibility_date = "2021-07-01"
-node_compat = true
+nodejs_compat = true
 # webpack_config = "webpack.config.js"
 account_id = "2a94650a01a5a443da8d4210ab9beac6"
 workers_dev = true
