@@ -10,3 +10,4 @@ node_modules/
 dist/
 .vscode
 .env
+.yarn/cache
