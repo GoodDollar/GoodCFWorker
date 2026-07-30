@@ -1003,7 +1003,7 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
             ["nopt", "npm:10.0.1"],\
             ["proc-log", "npm:7.0.0"],\
             ["semver", "npm:7.8.5"],\
-            ["tar", "npm:7.5.19"],\
+            ["tar", "npm:7.5.22"],\
             ["tinyglobby", "npm:0.2.17"],\
             ["undici", "npm:6.27.0"],\
             ["which", "npm:7.0.0"]\
@@ -1205,10 +1205,10 @@ function $$SETUP_STATE(hydrateRuntimeState, basePath) {
         }]\
       ]],\
       ["tar", [\
-        ["npm:7.5.19", {\
-          "packageLocation": "./.yarn/cache/tar-npm-7.5.19-667b5539a6-72bedc2608.zip/node_modules/tar/",\
+        ["npm:7.5.22", {\
+          "packageLocation": "./.yarn/cache/tar-npm-7.5.22-4f603e5fa8-e1434f4095.zip/node_modules/tar/",\
           "packageDependencies": [\
-            ["tar", "npm:7.5.19"],\
+            ["tar", "npm:7.5.22"],\
             ["@isaacs/fs-minipass", "npm:4.0.1"],\
             ["chownr", "npm:3.0.0"],\
             ["minipass", "npm:7.1.3"],\
